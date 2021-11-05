@@ -202,11 +202,13 @@ end
 entry.get_view = function(self, suggest_offset)
   local item = self:get_vim_item(suggest_offset)
   return self.cache:ensure({ 'get_view', self.resolved_completion_item and 1 or 0 }, function()
+    -- add padding.
     local view = {}
     view.abbr = {}
-    view.abbr.text = item.abbr or ''
+    view.abbr.text = string.rep(' ', math.max(0, self:get_offset() - suggest_offset)) .. (item.abbr or '')
     view.abbr.bytes = #view.abbr.text
     view.abbr.width = vim.str_utfindex(view.abbr.text)
+    view.abbr.offset = math.max(0, self:get_offset() - suggest_offset)
     view.abbr.hl_group = self:is_deprecated() and 'CmpItemAbbrDeprecated' or 'CmpItemAbbr'
     view.kind = {}
     view.kind.text = item.kind or ''
@@ -232,16 +234,6 @@ entry.get_vim_item = function(self, suggest_offset)
     local word = self:get_word()
     local abbr = str.oneline(completion_item.label)
 
-    -- ~ indicator
-    if #(misc.safe(completion_item.additionalTextEdits) or {}) > 0 then
-      abbr = abbr .. '~'
-    elseif completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet then
-      local insert_text = self:get_insert_text()
-      if word ~= insert_text then
-        abbr = abbr .. '~'
-      end
-    end
-
     -- append delta text
     if suggest_offset < self:get_offset() then
       word = string.sub(self.context.cursor_before_line, suggest_offset, self:get_offset() - 1) .. word
@@ -259,14 +251,6 @@ entry.get_vim_item = function(self, suggest_offset)
       end
     end
 
-    -- remove duplicated string.
-    for i = 1, #word - 1 do
-      if str.has_prefix(self.context.cursor_after_line, string.sub(word, i, #word)) then
-        word = string.sub(word, 1, i - 1)
-        break
-      end
-    end
-
     local vim_item = {
       word = word,
       abbr = abbr,
@@ -277,6 +261,25 @@ entry.get_vim_item = function(self, suggest_offset)
     if config.get().formatting.format then
       vim_item = config.get().formatting.format(self, vim_item)
     end
+
+    -- ~ indicator
+    if #(misc.safe(completion_item.additionalTextEdits) or {}) > 0 then
+      abbr = abbr .. '~'
+    elseif completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet then
+      local insert_text = self:get_insert_text()
+      if word ~= insert_text then
+        abbr = abbr .. '~'
+      end
+    end
+
+    -- remove duplicated string.
+    for i = 2, #word - 1 do
+      if str.has_prefix(self.context.cursor_after_line, string.sub(word, i, #word)) then
+        word = string.sub(word, 1, i - 1)
+        break
+      end
+    end
+
     vim_item.word = str.oneline(vim_item.word or '')
     vim_item.abbr = str.oneline(vim_item.abbr or '')
     vim_item.kind = str.oneline(vim_item.kind or '')

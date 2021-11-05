@@ -363,53 +363,27 @@ core.confirm = function(self, e, option, callback)
         completion_item.textEdit.range = e:get_insert_range()
       end
 
-      local keys = {}
-      if e.context.cursor.character < completion_item.textEdit.range['end'].character then
-        table.insert(keys, keymap.t(string.rep('<Del>', completion_item.textEdit.range['end'].character - e.context.cursor.character)))
-      end
-      if completion_item.textEdit.range.start.character < e.context.cursor.character then
-        table.insert(keys, keymap.backspace(e.context.cursor.character - completion_item.textEdit.range.start.character))
-      end
-      table.insert(keys, keymap.undobreak())
-
       local is_snippet = completion_item.insertTextFormat == types.lsp.InsertTextFormat.Snippet
       if is_snippet then
-        table.insert(keys, e:get_word())
+        -- remove snippet prefix without changing `dot` register.
+        vim.fn['cmp#apply_text_edits'](ctx.bufnr, { {
+          range = completion_item.textEdit.range,
+          newText = '',
+        } })
+        config.get().snippet.expand({
+          body = completion_item.textEdit.newText,
+          insert_text_mode = completion_item.insertTextMode,
+        })
       else
-        table.insert(keys, completion_item.textEdit.newText)
+        vim.fn['cmp#apply_text_edits'](ctx.bufnr, { completion_item.textEdit })
       end
-
-      feedkeys.call(table.concat(keys, ''), 'n', function()
-        if is_snippet then
-          -- remove snippet prefix without changing `dot` register.
-          local snippet_ctx = context.new()
-          vim.fn['cmp#apply_text_edits'](ctx.bufnr, { {
-            range = {
-              start = {
-                line = snippet_ctx.cursor.line,
-                character = snippet_ctx.cursor.character - vim.str_utfindex(e:get_word()),
-              },
-              ['end'] = snippet_ctx.cursor,
-            },
-            newText = '',
-          } })
-          config.get().snippet.expand({
-            body = completion_item.textEdit.newText,
-            insert_text_mode = completion_item.insertTextMode,
-          })
+      e:execute(vim.schedule_wrap(function()
+        release()
+        self.event:emit('confirm_done', e)
+        if callback then
+          callback()
         end
-        e:execute(vim.schedule_wrap(function()
-          release()
-          self.event:emit('confirm_done', e)
-          --For backward compatibility
-          if config.get().event.on_confirm_done then
-            config.get().event.on_confirm_done(e)
-          end
-          if callback then
-            callback()
-          end
-        end))
-      end)
+      end))
     end)
   end)
 end
