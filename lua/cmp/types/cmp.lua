@@ -115,6 +115,7 @@ cmp.ItemField.Menu = 'menu'
 ---@class cmp.ExperimentalConfig
 ---@field public native_menu boolean
 ---@field public ghost_text cmp.GhostTextConfig|"false"
+---@field public throttle_time integer
 
 ---@class cmp.GhostTextConfig
 ---@field hl_group string
